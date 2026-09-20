@@ -1,0 +1,906 @@
+{
+  "id": "DentalClinicAI_v1",
+  "meta": {
+    "instanceId": "dental-clinic-ai-automation-v1",
+    "templateCredsSetupCompleted": false
+  },
+  "name": "AI Dental Clinic – Lead Follow-Up & Appointment Booking System",
+  "tags": ["dental", "ai-agent", "crm", "appointment", "automation"],
+  "nodes": [
+
+    {
+      "id": "node-sticky-overview",
+      "name": "📋 System Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-2400, -600],
+      "parameters": {
+        "width": 900,
+        "height": 520,
+        "content": "# 🦷 AI Dental Clinic — Lead Follow-Up & Appointment Booking System\n\n## Lead Sources (4 entry points)\n1. **Facebook/Instagram Ads** → Lead Ads Webhook\n2. **Website Contact Form** → Website Webhook  \n3. **SMS / WhatsApp** → Twilio Webhook\n4. **Email Enquiry** → Gmail Trigger\n\n## What the system does\n- Responds to new leads within 60 seconds (SMS + Email + WhatsApp)\n- Qualifies leads: treatment interest, urgency, insurance, location\n- Checks Google Calendar availability and offers appointment slots\n- Books confirmed appointments and sends confirmations\n- Sends reminder 24h and 2h before appointment\n- Follows up with cold/unresponsive leads on Day 1, 3, 7\n- Escalates to human if patient is in pain, upset, or has complex needs\n- Logs everything to Airtable CRM\n\n## ⚙️ Setup: Fill in CONFIGURATION node first — all credentials and IDs go there"
+      },
+      "typeVersion": 1
+    },
+
+    {
+      "id": "node-config",
+      "name": "⚙️ CONFIGURATION",
+      "type": "n8n-nodes-base.set",
+      "position": [-2000, -200],
+      "parameters": {
+        "options": {},
+        "assignments": {
+          "assignments": [
+            { "id": "cfg-1",  "name": "clinic_name",           "type": "string", "value": "Bright Smile Dental Clinic" },
+            { "id": "cfg-2",  "name": "clinic_phone",          "type": "string", "value": "+1XXXXXXXXXX" },
+            { "id": "cfg-3",  "name": "clinic_email",          "type": "string", "value": "hello@brightsmile.com" },
+            { "id": "cfg-4",  "name": "clinic_address",        "type": "string", "value": "123 Main St, Austin TX 78701" },
+            { "id": "cfg-5",  "name": "clinic_hours",          "type": "string", "value": "Mon-Fri 8am-6pm, Sat 9am-2pm" },
+            { "id": "cfg-6",  "name": "twilio_from_sms",       "type": "string", "value": "+1XXXXXXXXXX" },
+            { "id": "cfg-7",  "name": "twilio_from_whatsapp",  "type": "string", "value": "whatsapp:+1XXXXXXXXXX" },
+            { "id": "cfg-8",  "name": "airtable_base_id",      "type": "string", "value": "appXXXXXXXXXXXXXX" },
+            { "id": "cfg-9",  "name": "airtable_leads_table",  "type": "string", "value": "Leads" },
+            { "id": "cfg-10", "name": "airtable_appts_table",  "type": "string", "value": "Appointments" },
+            { "id": "cfg-11", "name": "google_calendar_id",    "type": "string", "value": "your-calendar@gmail.com" },
+            { "id": "cfg-12", "name": "staff_email",           "type": "string", "value": "staff@brightsmile.com" },
+            { "id": "cfg-13", "name": "staff_phone",           "type": "string", "value": "+1XXXXXXXXXX" },
+            { "id": "cfg-14", "name": "airtable_token",        "type": "string", "value": "patXXXXXXXXXXXXXX" },
+            { "id": "cfg-15", "name": "clinic_knowledge",      "type": "string", "value": "Bright Smile Dental Clinic serves Austin TX. Services: General Dentistry, Teeth Whitening, Invisalign, Veneers, Implants, Emergency Dental, Kids Dentistry, Root Canal, Crowns & Bridges. New patient exam + X-rays: $99 special. Whitening: $299. Invisalign consultation free. We accept Delta Dental, Cigna, Aetna, MetLife, United Healthcare. Payment plans available via CareCredit. Emergency same-day appointments available Mon-Fri. Parking free on site. Located 5 min from downtown Austin." }
+          ]
+        }
+      },
+      "typeVersion": 3.4
+    },
+
+    {
+      "id": "node-fb-webhook",
+      "name": "📱 Facebook / Instagram Lead Ads",
+      "type": "n8n-nodes-base.webhook",
+      "position": [-1760, -600],
+      "webhookId": "dental-fb-leads",
+      "parameters": {
+        "path": "dental-fb-lead",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "typeVersion": 2.1
+    },
+
+    {
+      "id": "node-website-webhook",
+      "name": "🌐 Website Contact Form",
+      "type": "n8n-nodes-base.webhook",
+      "position": [-1760, -400],
+      "webhookId": "dental-website-form",
+      "parameters": {
+        "path": "dental-website-lead",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "typeVersion": 2.1
+    },
+
+    {
+      "id": "node-twilio-webhook",
+      "name": "💬 SMS / WhatsApp Inbound",
+      "type": "n8n-nodes-base.webhook",
+      "position": [-1760, -200],
+      "webhookId": "dental-twilio-inbound",
+      "parameters": {
+        "path": "dental-sms-whatsapp",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "typeVersion": 2.1
+    },
+
+    {
+      "id": "node-email-trigger",
+      "name": "📧 Email Enquiry (Gmail)",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "position": [-1760, 0],
+      "parameters": {
+        "pollTimes": { "item": [{ "mode": "everyMinute" }] },
+        "filters": { "includeSpamTrash": false },
+        "options": {}
+      },
+      "credentials": {
+        "gmailOAuth2": { "id": "gmail-credential-id", "name": "Gmail OAuth2" }
+      },
+      "typeVersion": 1.2
+    },
+
+    {
+      "id": "node-normalize-fb",
+      "name": "🔄 Normalize Facebook Lead",
+      "type": "n8n-nodes-base.code",
+      "position": [-1540, -600],
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst fieldData = body.entry?.[0]?.changes?.[0]?.value?.field_data || [];\nconst getField = (name) => fieldData.find(f => f.name === name)?.values?.[0] || '';\nreturn [{ json: {\n  source: 'facebook_ad',\n  channel: 'sms',\n  lead_name: getField('full_name') || getField('first_name') + ' ' + getField('last_name'),\n  lead_phone: getField('phone_number'),\n  lead_email: getField('email'),\n  message: 'New Facebook/Instagram lead — interested in: ' + (getField('interest') || getField('service') || 'dental services'),\n  ad_name: body.entry?.[0]?.changes?.[0]?.value?.ad_name || '',\n  form_id: body.entry?.[0]?.changes?.[0]?.value?.form_id || '',\n  raw_source: 'facebook'\n}}];"
+      },
+      "typeVersion": 2
+    },
+
+    {
+      "id": "node-normalize-website",
+      "name": "🔄 Normalize Website Lead",
+      "type": "n8n-nodes-base.code",
+      "position": [-1540, -400],
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nreturn [{ json: {\n  source: 'website_form',\n  channel: body.preferred_contact || 'email',\n  lead_name: body.name || body.full_name || '',\n  lead_phone: body.phone || body.telephone || '',\n  lead_email: body.email || '',\n  message: body.message || body.enquiry || body.service_interest || 'Website enquiry',\n  service_interest: body.service || body.treatment || '',\n  raw_source: 'website'\n}}];"
+      },
+      "typeVersion": 2
+    },
+
+    {
+      "id": "node-normalize-sms",
+      "name": "🔄 Normalize SMS/WhatsApp",
+      "type": "n8n-nodes-base.code",
+      "position": [-1540, -200],
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst isWhatsApp = (body.From || '').includes('whatsapp');\nreturn [{ json: {\n  source: isWhatsApp ? 'whatsapp' : 'sms',\n  channel: isWhatsApp ? 'whatsapp' : 'sms',\n  lead_name: body.ProfileName || body.From || 'Unknown',\n  lead_phone: (body.From || '').replace('whatsapp:', ''),\n  lead_email: '',\n  message: body.Body || '',\n  raw_source: isWhatsApp ? 'whatsapp' : 'sms'\n}}];"
+      },
+      "typeVersion": 2
+    },
+
+    {
+      "id": "node-normalize-email",
+      "name": "🔄 Normalize Email Lead",
+      "type": "n8n-nodes-base.code",
+      "position": [-1540, 0],
+      "parameters": {
+        "jsCode": "const email = $input.first().json;\nconst nameMatch = (email.from || '').match(/^([^<]+)/);\nreturn [{ json: {\n  source: 'email',\n  channel: 'email',\n  lead_name: nameMatch ? nameMatch[1].trim() : 'Unknown',\n  lead_phone: '',\n  lead_email: (email.from || '').match(/<(.+)>/)?.[1] || email.from || '',\n  message: (email.subject || '') + ' — ' + (email.text || email.snippet || '').substring(0, 500),\n  raw_source: 'email'\n}}];"
+      },
+      "typeVersion": 2
+    },
+
+    {
+      "id": "node-merge-leads",
+      "name": "🔀 Merge All Lead Sources",
+      "type": "n8n-nodes-base.merge",
+      "position": [-1300, -300],
+      "parameters": { "numberInputs": 4 },
+      "typeVersion": 3.2
+    },
+
+    {
+      "id": "node-enrich-lead",
+      "name": "📊 Enrich & Tag Lead",
+      "type": "n8n-nodes-base.code",
+      "position": [-1080, -300],
+      "parameters": {
+        "jsCode": "const d = $input.first().json;\nconst msg = (d.message || '').toLowerCase();\n\n// Detect treatment interest from message\nlet treatment = d.service_interest || 'General Enquiry';\nif (msg.includes('whiten') || msg.includes('white')) treatment = 'Teeth Whitening';\nelse if (msg.includes('invisalign') || msg.includes('braces') || msg.includes('straight')) treatment = 'Invisalign';\nelse if (msg.includes('implant')) treatment = 'Dental Implants';\nelse if (msg.includes('veneer')) treatment = 'Veneers';\nelse if (msg.includes('pain') || msg.includes('hurt') || msg.includes('emergency') || msg.includes('broken') || msg.includes('cracked')) treatment = 'Emergency';\nelse if (msg.includes('clean') || msg.includes('checkup') || msg.includes('check-up') || msg.includes('exam')) treatment = 'General Checkup';\nelse if (msg.includes('root canal')) treatment = 'Root Canal';\nelse if (msg.includes('crown')) treatment = 'Crown';\nelse if (msg.includes('kid') || msg.includes('child') || msg.includes('son') || msg.includes('daughter')) treatment = 'Kids Dentistry';\n\n// Detect urgency\nconst isUrgent = msg.includes('pain') || msg.includes('hurt') || msg.includes('emergency') || msg.includes('broken') || msg.includes('asap') || msg.includes('today') || msg.includes('urgent');\n\n// Lead score (1-10)\nlet score = 5;\nif (isUrgent) score += 3;\nif (d.lead_phone) score += 1;\nif (d.lead_email) score += 1;\nif (d.source === 'facebook_ad') score -= 1;\n\nconst leadId = 'DEN_' + Date.now() + '_' + Math.random().toString(36).substr(2,5).toUpperCase();\n\nreturn [{ json: {\n  ...d,\n  lead_id: leadId,\n  treatment_interest: treatment,\n  is_urgent: isUrgent,\n  lead_score: Math.min(10, score),\n  status: 'new',\n  follow_up_stage: 0,\n  created_at: new Date().toISOString(),\n  last_updated: new Date().toISOString()\n}}];"
+      },
+      "typeVersion": 2
+    },
+
+    {
+      "id": "node-check-existing",
+      "name": "🔍 Check Existing Lead in Airtable",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [-860, -300],
+      "parameters": {
+        "url": "=https://api.airtable.com/v0/{{ $('⚙️ CONFIGURATION').first().json.airtable_base_id }}/{{ $('⚙️ CONFIGURATION').first().json.airtable_leads_table }}",
+        "method": "GET",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "filterByFormula", "value": "=OR(Phone='{{ $json.lead_phone }}', Email='{{ $json.lead_email }}')" },
+            { "name": "maxRecords", "value": "1" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $('⚙️ CONFIGURATION').first().json.airtable_token }}" }
+          ]
+        },
+        "options": {}
+      },
+      "typeVersion": 4.3
+    },
+
+    {
+      "id": "node-is-existing",
+      "name": "🔀 New or Returning Lead?",
+      "type": "n8n-nodes-base.if",
+      "position": [-640, -300],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "loose" },
+          "combinator": "and",
+          "conditions": [
+            {
+              "operator": { "type": "number", "operation": "gt" },
+              "leftValue": "={{ ($json.records || []).length }}",
+              "rightValue": 0
+            }
+          ]
+        },
+        "options": {}
+      },
+      "typeVersion": 2.2
+    },
+
+    {
+      "id": "node-create-airtable-lead",
+      "name": "💾 Create Lead in Airtable",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [-420, -420],
+      "parameters": {
+        "url": "=https://api.airtable.com/v0/{{ $('⚙️ CONFIGURATION').first().json.airtable_base_id }}/{{ $('⚙️ CONFIGURATION').first().json.airtable_leads_table }}",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $('⚙️ CONFIGURATION').first().json.airtable_token }}" },
+            { "name": "Content-Type",  "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ fields: { Lead_ID: $('📊 Enrich & Tag Lead').first().json.lead_id, Name: $('📊 Enrich & Tag Lead').first().json.lead_name, Phone: $('📊 Enrich & Tag Lead').first().json.lead_phone, Email: $('📊 Enrich & Tag Lead').first().json.lead_email, Source: $('📊 Enrich & Tag Lead').first().json.source, Channel: $('📊 Enrich & Tag Lead').first().json.channel, Treatment_Interest: $('📊 Enrich & Tag Lead').first().json.treatment_interest, Status: 'new', Lead_Score: $('📊 Enrich & Tag Lead').first().json.lead_score, Is_Urgent: $('📊 Enrich & Tag Lead').first().json.is_urgent, Last_Message: $('📊 Enrich & Tag Lead').first().json.message, Follow_Up_Stage: 0, Created_At: new Date().toISOString(), Last_Updated: new Date().toISOString() }, typecast: true }) }}",
+        "options": {}
+      },
+      "typeVersion": 4.3
+    },
+
+    {
+      "id": "node-update-airtable-lead",
+      "name": "💾 Update Existing Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [-420, -180],
+      "parameters": {
+        "url": "=https://api.airtable.com/v0/{{ $('⚙️ CONFIGURATION').first().json.airtable_base_id }}/{{ $('⚙️ CONFIGURATION').first().json.airtable_leads_table }}/{{ $('🔍 Check Existing Lead in Airtable').first().json.records[0].id }}",
+        "method": "PATCH",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $('⚙️ CONFIGURATION').first().json.airtable_token }}" },
+            { "name": "Content-Type",  "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ fields: { Last_Message: $('📊 Enrich & Tag Lead').first().json.message, Last_Updated: new Date().toISOString(), Status: 'contacted' }, typecast: true }) }}",
+        "options": {}
+      },
+      "typeVersion": 4.3
+    },
+
+    {
+      "id": "node-is-urgent",
+      "name": "🚨 Is Urgent / Emergency?",
+      "type": "n8n-nodes-base.if",
+      "position": [-160, -300],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "loose" },
+          "combinator": "and",
+          "conditions": [
+            {
+              "operator": { "type": "boolean", "operation": "equals" },
+              "leftValue": "={{ $('📊 Enrich & Tag Lead').first().json.is_urgent }}",
+              "rightValue": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "typeVersion": 2.2
+    },
+
+    {
+      "id": "node-urgent-sms",
+      "name": "🚨 Urgent — Alert Staff + Reply",
+      "type": "n8n-nodes-base.twilio",
+      "position": [60, -500],
+      "parameters": {
+        "to": "={{ $('⚙️ CONFIGURATION').first().json.staff_phone }}",
+        "from": "={{ $('⚙️ CONFIGURATION').first().json.twilio_from_sms }}",
+        "message": "=🚨 URGENT DENTAL LEAD\nName: {{ $('📊 Enrich & Tag Lead').first().json.lead_name }}\nPhone: {{ $('📊 Enrich & Tag Lead').first().json.lead_phone }}\nTreatment: {{ $('📊 Enrich & Tag Lead').first().json.treatment_interest }}\nMessage: {{ $('📊 Enrich & Tag Lead').first().json.message }}\nSource: {{ $('📊 Enrich & Tag Lead').first().json.source }}\nCall them NOW.",
+        "options": {}
+      },
+      "credentials": {
+        "twilioApi": { "id": "twilio-credential-id", "name": "Twilio account" }
+      },
+      "typeVersion": 1
+    },
+
+    {
+      "id": "node-ai-agent",
+      "name": "🤖 Dr. Riley — AI Dental Receptionist",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [60, -200],
+      "parameters": {
+        "text": "=Lead Source: {{ $('📊 Enrich & Tag Lead').first().json.source }}\nChannel: {{ $('📊 Enrich & Tag Lead').first().json.channel }}\nLead Name: {{ $('📊 Enrich & Tag Lead').first().json.lead_name }}\nLead Phone: {{ $('📊 Enrich & Tag Lead').first().json.lead_phone }}\nLead Email: {{ $('📊 Enrich & Tag Lead').first().json.lead_email }}\nTreatment Interest: {{ $('📊 Enrich & Tag Lead').first().json.treatment_interest }}\nIs Urgent: {{ $('📊 Enrich & Tag Lead').first().json.is_urgent }}\nLead Score: {{ $('📊 Enrich & Tag Lead').first().json.lead_score }}\nPatient Message: {{ $('📊 Enrich & Tag Lead').first().json.message }}\nCurrent Date/Time: {{ $now.setZone('America/Chicago').toFormat('EEEE, MMMM d yyyy h:mm a') }}\n\nRespond to this patient and use tools as needed.",
+        "options": {
+          "systemMessage": "=You are Dr. Riley, the warm and professional AI dental receptionist for {{ $('⚙️ CONFIGURATION').first().json.clinic_name }}.\n\nYour personality: Warm, reassuring, professional. Patients are often anxious about dental visits — acknowledge this and put them at ease. You never say you are an AI unless directly asked.\n\nClinic Knowledge:\n{{ $('⚙️ CONFIGURATION').first().json.clinic_knowledge }}\n\nYour goals in order:\n1. Acknowledge the patient's enquiry warmly and by name\n2. Address their specific treatment interest or concern\n3. If treatment interest is Emergency — immediately sympathise, give brief pain management tip (salt water rinse, OTC pain relief), and say the team is being alerted for same-day care\n4. Qualify the lead with ONE question at a time: treatment needed → insurance → preferred day/time\n5. Once qualified → call check_availability tool to offer real slots\n6. When patient picks a slot → call book_appointment tool\n7. After booking → call update_crm tool with status=booked\n8. If patient is upset, in severe pain, or needs immediate help → call escalate_to_human immediately\n\nRules:\n- Keep SMS/WhatsApp replies under 60 words\n- Keep email replies under 150 words, use line breaks for readability\n- NEVER invent prices, procedures, or availability not in clinic knowledge\n- NEVER be pushy — one clear call to action per message\n- ALWAYS use the patient's first name\n- After booking, always confirm: date, time, address, what to bring (ID + insurance card)"
+        },
+        "promptType": "define"
+      },
+      "typeVersion": 3.1
+    },
+
+    {
+      "id": "node-openai-model",
+      "name": "🧠 GPT-4o",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "position": [-60, 60],
+      "parameters": {
+        "model": { "__rl": true, "mode": "list", "value": "gpt-4o" },
+        "options": { "temperature": 0.3, "maxTokens": 1000 }
+      },
+      "credentials": {
+        "openAiApi": { "id": "openai-credential-id", "name": "OpenAI API" }
+      },
+      "typeVersion": 1
+    },
+
+    {
+      "id": "node-memory",
+      "name": "🧠 Conversation Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "position": [60, 60],
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('📊 Enrich & Tag Lead').first().json.lead_phone || $('📊 Enrich & Tag Lead').first().json.lead_email }}",
+        "contextWindowLength": 20
+      },
+      "typeVersion": 1.3
+    },
+
+    {
+      "id": "node-tool-check-availability",
+      "name": "🔧 Tool: Check Availability",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "position": [180, 60],
+      "parameters": {
+        "name": "check_availability",
+        "description": "Check open appointment slots at the dental clinic. Input: treatment_type (string), preferred_day (string e.g. 'Monday', 'this week', 'tomorrow'), preferred_time (string e.g. 'morning', 'afternoon', 'any'). Returns list of available slots.",
+        "workflowId": "REPLACE_WITH_CHECK_AVAILABILITY_WORKFLOW_ID",
+        "workflowInputs": {
+          "schema": [
+            { "name": "treatment_type",  "type": "string" },
+            { "name": "preferred_day",   "type": "string" },
+            { "name": "preferred_time",  "type": "string" }
+          ]
+        }
+      },
+      "typeVersion": 2
+    },
+
+    {
+      "id": "node-tool-book-appointment",
+      "name": "🔧 Tool: Book Appointment",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "position": [300, 60],
+      "parameters": {
+        "name": "book_appointment",
+        "description": "Book a confirmed dental appointment. Input: patient_name, patient_phone, patient_email, treatment_type, date_time (ISO string), notes (insurance, special requests). Returns confirmation with event ID.",
+        "workflowId": "REPLACE_WITH_BOOK_APPOINTMENT_WORKFLOW_ID",
+        "workflowInputs": {
+          "schema": [
+            { "name": "patient_name",    "type": "string" },
+            { "name": "patient_phone",   "type": "string" },
+            { "name": "patient_email",   "type": "string" },
+            { "name": "treatment_type",  "type": "string" },
+            { "name": "date_time",       "type": "string" },
+            { "name": "notes",           "type": "string" }
+          ]
+        }
+      },
+      "typeVersion": 2
+    },
+
+    {
+      "id": "node-tool-update-crm",
+      "name": "🔧 Tool: Update CRM",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "position": [420, 60],
+      "parameters": {
+        "name": "update_crm",
+        "description": "Update the patient lead record in Airtable CRM. Call this after every interaction. Input: phone (required), status (new/contacted/qualified/booked/no_show/closed_lost), treatment_interest, qualification_notes, next_action.",
+        "method": "POST",
+        "url": "=https://api.airtable.com/v0/{{ $('⚙️ CONFIGURATION').first().json.airtable_base_id }}/{{ $('⚙️ CONFIGURATION').first().json.airtable_leads_table }}",
+        "sendHeaders": true,
+        "parametersJson": "={{ JSON.stringify({ fields: { Status: $fromAI('status','Lead status'), Treatment_Interest: $fromAI('treatment_interest','Treatment patient wants'), Qualification_Notes: $fromAI('qualification_notes','Notes from qualification conversation'), Next_Action: $fromAI('next_action','What happens next'), Last_Updated: new Date().toISOString() }, typecast: true }) }}",
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $('⚙️ CONFIGURATION').first().json.airtable_token }}" },
+            { "name": "Content-Type",  "value": "application/json" }
+          ]
+        }
+      },
+      "typeVersion": 1
+    },
+
+    {
+      "id": "node-tool-escalate",
+      "name": "🔧 Tool: Escalate To Human",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "position": [540, 60],
+      "parameters": {
+        "name": "escalate_to_human",
+        "description": "Alert the dental team that a patient needs immediate human attention. Use for: severe pain, upset patients, complex cases, complaints. Input: patient_name, patient_phone, reason, urgency (emergency/high/normal).",
+        "method": "POST",
+        "url": "REPLACE_WITH_SLACK_WEBHOOK_OR_ESCALATION_URL",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: '🦷 DENTAL ESCALATION\\nPatient: ' + $fromAI('patient_name','Patient name') + '\\nPhone: ' + $fromAI('patient_phone','Patient phone') + '\\nReason: ' + $fromAI('reason','Reason for escalation') + '\\nUrgency: ' + $fromAI('urgency','Urgency level') }) }}"
+      },
+      "typeVersion": 1
+    },
+
+    {
+      "id": "node-route-channel",
+      "name": "📤 Route by Channel",
+      "type": "n8n-nodes-base.switch",
+      "position": [340, -200],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "SMS",
+              "conditions": {
+                "options": { "caseSensitive": false, "typeValidation": "loose" },
+                "combinator": "and",
+                "conditions": [{ "operator": { "type": "string", "operation": "equals" }, "leftValue": "={{ $('📊 Enrich & Tag Lead').first().json.channel }}", "rightValue": "sms" }]
+              },
+              "renameOutput": true
+            },
+            {
+              "outputKey": "WhatsApp",
+              "conditions": {
+                "options": { "caseSensitive": false, "typeValidation": "loose" },
+                "combinator": "and",
+                "conditions": [{ "operator": { "type": "string", "operation": "equals" }, "leftValue": "={{ $('📊 Enrich & Tag Lead').first().json.channel }}", "rightValue": "whatsapp" }]
+              },
+              "renameOutput": true
+            },
+            {
+              "outputKey": "Email",
+              "conditions": {
+                "options": { "caseSensitive": false, "typeValidation": "loose" },
+                "combinator": "and",
+                "conditions": [{ "operator": { "type": "string", "operation": "equals" }, "leftValue": "={{ $('📊 Enrich & Tag Lead').first().json.channel }}", "rightValue": "email" }]
+              },
+              "renameOutput": true
+            }
+          ]
+        },
+        "fallbackOutput": "extra",
+        "options": {}
+      },
+      "typeVersion": 3.4
+    },
+
+    {
+      "id": "node-send-sms",
+      "name": "📱 Send SMS Reply",
+      "type": "n8n-nodes-base.twilio",
+      "position": [560, -340],
+      "parameters": {
+        "to": "={{ $('📊 Enrich & Tag Lead').first().json.lead_phone }}",
+        "from": "={{ $('⚙️ CONFIGURATION').first().json.twilio_from_sms }}",
+        "message": "={{ $json.output }}",
+        "options": {}
+      },
+      "credentials": {
+        "twilioApi": { "id": "twilio-credential-id", "name": "Twilio account" }
+      },
+      "typeVersion": 1
+    },
+
+    {
+      "id": "node-send-whatsapp",
+      "name": "💬 Send WhatsApp Reply",
+      "type": "n8n-nodes-base.twilio",
+      "position": [560, -200],
+      "parameters": {
+        "to": "=whatsapp:{{ $('📊 Enrich & Tag Lead').first().json.lead_phone }}",
+        "from": "={{ $('⚙️ CONFIGURATION').first().json.twilio_from_whatsapp }}",
+        "message": "={{ $json.output }}",
+        "options": {}
+      },
+      "credentials": {
+        "twilioApi": { "id": "twilio-credential-id", "name": "Twilio account" }
+      },
+      "typeVersion": 1
+    },
+
+    {
+      "id": "node-send-email-reply",
+      "name": "📧 Send Email Reply",
+      "type": "n8n-nodes-base.gmail",
+      "position": [560, -60],
+      "parameters": {
+        "sendTo": "={{ $('📊 Enrich & Tag Lead').first().json.lead_email }}",
+        "subject": "=Re: Your enquiry at {{ $('⚙️ CONFIGURATION').first().json.clinic_name }}",
+        "message": "={{ $json.output }}",
+        "options": { "senderName": "={{ $('⚙️ CONFIGURATION').first().json.clinic_name }}" },
+        "authentication": "oAuth2",
+        "emailType": "text"
+      },
+      "credentials": {
+        "gmailOAuth2": { "id": "gmail-credential-id", "name": "Gmail OAuth2" }
+      },
+      "typeVersion": 2.2
+    },
+
+    {
+      "id": "node-also-send-sms-new",
+      "name": "📱 Also Send SMS (new leads)",
+      "type": "n8n-nodes-base.twilio",
+      "position": [560, 100],
+      "parameters": {
+        "to": "={{ $('📊 Enrich & Tag Lead').first().json.lead_phone }}",
+        "from": "={{ $('⚙️ CONFIGURATION').first().json.twilio_from_sms }}",
+        "message": "=Hi {{ $('📊 Enrich & Tag Lead').first().json.lead_name.split(' ')[0] }}! This is {{ $('⚙️ CONFIGURATION').first().json.clinic_name }}. We received your enquiry and will be in touch shortly. Reply here anytime!",
+        "options": {}
+      },
+      "credentials": {
+        "twilioApi": { "id": "twilio-credential-id", "name": "Twilio account" }
+      },
+      "typeVersion": 1
+    },
+
+    {
+      "id": "node-reminder-schedule",
+      "name": "⏰ Appointment Reminder Scheduler",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [-1760, 300],
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 8 * * *" }]
+        }
+      },
+      "typeVersion": 1.3
+    },
+
+    {
+      "id": "node-get-upcoming-appts",
+      "name": "📅 Get Appointments for Next 24h + 2h",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [-1540, 300],
+      "parameters": {
+        "url": "=https://api.airtable.com/v0/{{ $('⚙️ CONFIGURATION').first().json.airtable_base_id }}/{{ $('⚙️ CONFIGURATION').first().json.airtable_appts_table }}",
+        "method": "GET",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "filterByFormula", "value": "=AND({Status}='confirmed', IS_AFTER({Appointment_DateTime}, NOW()), IS_BEFORE({Appointment_DateTime}, DATEADD(NOW(), 25, 'hours')))" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $('⚙️ CONFIGURATION').first().json.airtable_token }}" }
+          ]
+        },
+        "options": {}
+      },
+      "typeVersion": 4.3
+    },
+
+    {
+      "id": "node-split-appts",
+      "name": "🔀 Split Appointments",
+      "type": "n8n-nodes-base.splitInBatches",
+      "position": [-1300, 300],
+      "parameters": { "batchSize": 1, "options": {} },
+      "typeVersion": 3
+    },
+
+    {
+      "id": "node-reminder-type",
+      "name": "⏱️ 24h or 2h Reminder?",
+      "type": "n8n-nodes-base.if",
+      "position": [-1080, 300],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "loose" },
+          "combinator": "and",
+          "conditions": [
+            {
+              "operator": { "type": "number", "operation": "gt" },
+              "leftValue": "={{ Math.abs(new Date($json.fields.Appointment_DateTime) - new Date()) / 3600000 }}",
+              "rightValue": 3
+            }
+          ]
+        },
+        "options": {}
+      },
+      "typeVersion": 2.2
+    },
+
+    {
+      "id": "node-send-24h-reminder",
+      "name": "📱 Send 24h Reminder",
+      "type": "n8n-nodes-base.twilio",
+      "position": [-860, 200],
+      "parameters": {
+        "to": "={{ $json.fields.Patient_Phone }}",
+        "from": "={{ $('⚙️ CONFIGURATION').first().json.twilio_from_sms }}",
+        "message": "=Hi {{ $json.fields.Patient_Name.split(' ')[0] }}! 👋 Friendly reminder: you have a dental appointment at {{ $('⚙️ CONFIGURATION').first().json.clinic_name }} tomorrow at {{ new Date($json.fields.Appointment_DateTime).toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'}) }}.\n\n📍 {{ $('⚙️ CONFIGURATION').first().json.clinic_address }}\n\nPlease bring: Photo ID + insurance card. Reply CONFIRM to confirm or CANCEL to cancel. See you soon! 🦷",
+        "options": {}
+      },
+      "credentials": {
+        "twilioApi": { "id": "twilio-credential-id", "name": "Twilio account" }
+      },
+      "typeVersion": 1
+    },
+
+    {
+      "id": "node-send-2h-reminder",
+      "name": "📱 Send 2h Reminder",
+      "type": "n8n-nodes-base.twilio",
+      "position": [-860, 400],
+      "parameters": {
+        "to": "={{ $json.fields.Patient_Phone }}",
+        "from": "={{ $('⚙️ CONFIGURATION').first().json.twilio_from_sms }}",
+        "message": "=Hi {{ $json.fields.Patient_Name.split(' ')[0] }}! Your appointment at {{ $('⚙️ CONFIGURATION').first().json.clinic_name }} is in about 2 hours ({{ new Date($json.fields.Appointment_DateTime).toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'}) }}). 📍 {{ $('⚙️ CONFIGURATION').first().json.clinic_address }} — free parking on site. See you soon! 🦷",
+        "options": {}
+      },
+      "credentials": {
+        "twilioApi": { "id": "twilio-credential-id", "name": "Twilio account" }
+      },
+      "typeVersion": 1
+    },
+
+    {
+      "id": "node-followup-schedule",
+      "name": "⏰ Daily Follow-Up Scheduler",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [-1760, 600],
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 10 * * *" }]
+        }
+      },
+      "typeVersion": 1.3
+    },
+
+    {
+      "id": "node-get-cold-leads",
+      "name": "📋 Get Cold Leads from Airtable",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [-1540, 600],
+      "parameters": {
+        "url": "=https://api.airtable.com/v0/{{ $('⚙️ CONFIGURATION').first().json.airtable_base_id }}/{{ $('⚙️ CONFIGURATION').first().json.airtable_leads_table }}",
+        "method": "GET",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "filterByFormula", "value": "=AND(OR({Status}='new',{Status}='contacted',{Status}='qualified'), {Follow_Up_Stage}<3, DATETIME_DIFF(NOW(),{Last_Updated},'hours')>20)" },
+            { "name": "fields[]", "value": "Name" },
+            { "name": "fields[]", "value": "Phone" },
+            { "name": "fields[]", "value": "Email" },
+            { "name": "fields[]", "value": "Channel" },
+            { "name": "fields[]", "value": "Treatment_Interest" },
+            { "name": "fields[]", "value": "Last_Message" },
+            { "name": "fields[]", "value": "Follow_Up_Stage" },
+            { "name": "fields[]", "value": "Lead_Score" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $('⚙️ CONFIGURATION').first().json.airtable_token }}" }
+          ]
+        },
+        "options": {}
+      },
+      "typeVersion": 4.3
+    },
+
+    {
+      "id": "node-split-cold",
+      "name": "🔀 Split Cold Leads",
+      "type": "n8n-nodes-base.splitInBatches",
+      "position": [-1300, 600],
+      "parameters": { "batchSize": 1, "options": {} },
+      "typeVersion": 3
+    },
+
+    {
+      "id": "node-build-followup",
+      "name": "📝 Build Follow-Up Context",
+      "type": "n8n-nodes-base.set",
+      "position": [-1080, 600],
+      "parameters": {
+        "options": {},
+        "assignments": {
+          "assignments": [
+            { "id": "fu-1", "name": "lead_name",         "type": "string", "value": "={{ $json.fields.Name }}" },
+            { "id": "fu-2", "name": "lead_phone",        "type": "string", "value": "={{ $json.fields.Phone }}" },
+            { "id": "fu-3", "name": "lead_email",        "type": "string", "value": "={{ $json.fields.Email }}" },
+            { "id": "fu-4", "name": "channel",           "type": "string", "value": "={{ $json.fields.Channel || 'sms' }}" },
+            { "id": "fu-5", "name": "treatment_interest","type": "string", "value": "={{ $json.fields.Treatment_Interest }}" },
+            { "id": "fu-6", "name": "last_message",      "type": "string", "value": "={{ $json.fields.Last_Message }}" },
+            { "id": "fu-7", "name": "follow_up_stage",   "type": "number", "value": "={{ $json.fields.Follow_Up_Stage || 0 }}" },
+            { "id": "fu-8", "name": "airtable_record_id","type": "string", "value": "={{ $json.id }}" }
+          ]
+        }
+      },
+      "typeVersion": 3.4
+    },
+
+    {
+      "id": "node-followup-ai",
+      "name": "🤖 Follow-Up AI Message",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [-860, 600],
+      "parameters": {
+        "text": "=Write a follow-up message for this dental lead:\nName: {{ $json.lead_name }}\nTreatment Interest: {{ $json.treatment_interest }}\nOriginal Message: {{ $json.last_message }}\nFollow-Up Stage: {{ $json.follow_up_stage }} (0=Day1, 1=Day3, 2=Day7)\nChannel: {{ $json.channel }} (keep under 60 words for SMS/WhatsApp)\n\nMake it warm, non-pushy, and different from a generic reminder. Reference their specific treatment interest. End with one clear action.",
+        "options": {
+          "systemMessage": "=You are Dr. Riley from {{ $('⚙️ CONFIGURATION').first().json.clinic_name }}. Write warm, personalised follow-up messages to dental leads. Each follow-up stage should feel different: Day 1 = helpful and informative, Day 3 = gentle nudge with a specific benefit, Day 7 = final soft close with a special offer or easy next step. Never be pushy. Never say 'just following up'. Always reference their specific treatment interest."
+        },
+        "promptType": "define"
+      },
+      "typeVersion": 3.1
+    },
+
+    {
+      "id": "node-followup-openai",
+      "name": "🧠 GPT-4o (Follow-Up)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "position": [-860, 780],
+      "parameters": {
+        "model": { "__rl": true, "mode": "list", "value": "gpt-4o" },
+        "options": { "temperature": 0.5, "maxTokens": 200 }
+      },
+      "credentials": {
+        "openAiApi": { "id": "openai-credential-id", "name": "OpenAI API" }
+      },
+      "typeVersion": 1
+    },
+
+    {
+      "id": "node-send-followup",
+      "name": "📱 Send Follow-Up SMS",
+      "type": "n8n-nodes-base.twilio",
+      "position": [-640, 600],
+      "parameters": {
+        "to": "={{ $('📝 Build Follow-Up Context').first().json.lead_phone }}",
+        "from": "={{ $('⚙️ CONFIGURATION').first().json.twilio_from_sms }}",
+        "message": "={{ $json.output }}",
+        "options": {}
+      },
+      "credentials": {
+        "twilioApi": { "id": "twilio-credential-id", "name": "Twilio account" }
+      },
+      "typeVersion": 1
+    },
+
+    {
+      "id": "node-increment-stage",
+      "name": "💾 Increment Follow-Up Stage",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [-420, 600],
+      "parameters": {
+        "url": "=https://api.airtable.com/v0/{{ $('⚙️ CONFIGURATION').first().json.airtable_base_id }}/{{ $('⚙️ CONFIGURATION').first().json.airtable_leads_table }}/{{ $('📝 Build Follow-Up Context').first().json.airtable_record_id }}",
+        "method": "PATCH",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $('⚙️ CONFIGURATION').first().json.airtable_token }}" },
+            { "name": "Content-Type",  "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ fields: { Follow_Up_Stage: $('📝 Build Follow-Up Context').first().json.follow_up_stage + 1, Last_Updated: new Date().toISOString(), Status: 'contacted' }, typecast: true }) }}",
+        "options": {}
+      },
+      "typeVersion": 4.3
+    },
+
+    {
+      "id": "node-sticky-airtable",
+      "name": "📋 Airtable Schema",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-2400, 0],
+      "parameters": {
+        "color": 3,
+        "width": 500,
+        "height": 560,
+        "content": "## 📋 Airtable: Leads Table\n\n**Required columns:**\n- Lead_ID (text)\n- Name (text)\n- Phone (phone)\n- Email (email)\n- Source (single select: facebook_ad, website_form, sms, whatsapp, email)\n- Channel (single select: sms, whatsapp, email)\n- Treatment_Interest (single select: General Checkup, Teeth Whitening, Invisalign, Dental Implants, Veneers, Emergency, Root Canal, Crown, Kids Dentistry, General Enquiry)\n- Status (single select: new, contacted, qualified, booked, confirmed, no_show, closed_lost)\n- Lead_Score (number)\n- Is_Urgent (checkbox)\n- Last_Message (long text)\n- Qualification_Notes (long text)\n- Next_Action (text)\n- Follow_Up_Stage (number: 0,1,2,3)\n- Created_At (date+time)\n- Last_Updated (date+time)\n- Stale (formula): AND(OR({Status}='new',{Status}='contacted'),DATETIME_DIFF(NOW(),{Last_Updated},'hours')>20,{Follow_Up_Stage}<3)\n\n## 📋 Airtable: Appointments Table\n\n- Lead_ID (text)\n- Patient_Name (text)\n- Patient_Phone (phone)\n- Patient_Email (email)\n- Treatment_Type (text)\n- Appointment_DateTime (date+time)\n- Status (single select: pending, confirmed, completed, no_show, cancelled)\n- Google_Event_ID (text)\n- Notes (long text)\n- Reminder_24h_Sent (checkbox)\n- Reminder_2h_Sent (checkbox)"
+      },
+      "typeVersion": 1
+    },
+
+    {
+      "id": "node-sticky-subworkflows",
+      "name": "📋 Sub-workflow Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-2400, 600],
+      "parameters": {
+        "color": 5,
+        "width": 500,
+        "height": 400,
+        "content": "## Sub-Workflow 1: Check Availability\nTrigger: Execute Workflow Trigger\nInputs: treatment_type, preferred_day, preferred_time\n→ Google Calendar: Get Events (next 7 days)\n→ Code: Calculate 3 free 1-hour slots during clinic hours (8am-6pm)\n→ Return: { slots: [...], slots_text: '...' }\n\n## Sub-Workflow 2: Book Appointment  \nTrigger: Execute Workflow Trigger\nInputs: patient_name, patient_phone, patient_email, treatment_type, date_time, notes\n→ Google Calendar: Create Event (1 hour, title = 'treatment - name')\n→ Airtable: Create row in Appointments table\n→ Twilio: SMS confirmation to patient\n→ Gmail: Email confirmation to patient\n→ Return: { success: true, event_id, confirmed_time, confirmation_message }\n\n## Credentials needed:\n- OpenAI API\n- Twilio (SMS + WhatsApp)\n- Gmail OAuth2\n- Google Calendar OAuth2\n- Airtable Personal Access Token\n- Facebook Lead Ads (via n8n Facebook Trigger or webhook)"
+      },
+      "typeVersion": 1
+    }
+
+  ],
+
+  "connections": {
+    "📱 Facebook / Instagram Lead Ads": { "main": [[{ "node": "🔄 Normalize Facebook Lead", "type": "main", "index": 0 }]] },
+    "🌐 Website Contact Form":          { "main": [[{ "node": "🔄 Normalize Website Lead",  "type": "main", "index": 0 }]] },
+    "💬 SMS / WhatsApp Inbound":        { "main": [[{ "node": "🔄 Normalize SMS/WhatsApp",  "type": "main", "index": 0 }]] },
+    "📧 Email Enquiry (Gmail)":         { "main": [[{ "node": "🔄 Normalize Email Lead",    "type": "main", "index": 0 }]] },
+
+    "🔄 Normalize Facebook Lead": { "main": [[{ "node": "🔀 Merge All Lead Sources", "type": "main", "index": 0 }]] },
+    "🔄 Normalize Website Lead":  { "main": [[{ "node": "🔀 Merge All Lead Sources", "type": "main", "index": 1 }]] },
+    "🔄 Normalize SMS/WhatsApp":  { "main": [[{ "node": "🔀 Merge All Lead Sources", "type": "main", "index": 2 }]] },
+    "🔄 Normalize Email Lead":    { "main": [[{ "node": "🔀 Merge All Lead Sources", "type": "main", "index": 3 }]] },
+
+    "🔀 Merge All Lead Sources": { "main": [[{ "node": "📊 Enrich & Tag Lead", "type": "main", "index": 0 }]] },
+    "📊 Enrich & Tag Lead":      { "main": [[{ "node": "🔍 Check Existing Lead in Airtable", "type": "main", "index": 0 }]] },
+    "🔍 Check Existing Lead in Airtable": { "main": [[{ "node": "🔀 New or Returning Lead?", "type": "main", "index": 0 }]] },
+
+    "🔀 New or Returning Lead?": {
+      "main": [
+        [{ "node": "💾 Update Existing Lead",     "type": "main", "index": 0 }],
+        [{ "node": "💾 Create Lead in Airtable",  "type": "main", "index": 0 }]
+      ]
+    },
+
+    "💾 Create Lead in Airtable": { "main": [[{ "node": "🚨 Is Urgent / Emergency?", "type": "main", "index": 0 }]] },
+    "💾 Update Existing Lead":    { "main": [[{ "node": "🚨 Is Urgent / Emergency?", "type": "main", "index": 0 }]] },
+
+    "🚨 Is Urgent / Emergency?": {
+      "main": [
+        [
+          { "node": "🚨 Urgent — Alert Staff + Reply",  "type": "main", "index": 0 },
+          { "node": "🤖 Dr. Riley — AI Dental Receptionist", "type": "main", "index": 0 }
+        ],
+        [{ "node": "🤖 Dr. Riley — AI Dental Receptionist", "type": "main", "index": 0 }]
+      ]
+    },
+
+    "🤖 Dr. Riley — AI Dental Receptionist": { "main": [[{ "node": "📤 Route by Channel", "type": "main", "index": 0 }]] },
+
+    "🧠 GPT-4o":              { "ai_languageModel": [[{ "node": "🤖 Dr. Riley — AI Dental Receptionist", "type": "ai_languageModel", "index": 0 }]] },
+    "🧠 Conversation Memory": { "ai_memory":        [[{ "node": "🤖 Dr. Riley — AI Dental Receptionist", "type": "ai_memory",        "index": 0 }]] },
+    "🔧 Tool: Check Availability":  { "ai_tool": [[{ "node": "🤖 Dr. Riley — AI Dental Receptionist", "type": "ai_tool", "index": 0 }]] },
+    "🔧 Tool: Book Appointment":    { "ai_tool": [[{ "node": "🤖 Dr. Riley — AI Dental Receptionist", "type": "ai_tool", "index": 0 }]] },
+    "🔧 Tool: Update CRM":          { "ai_tool": [[{ "node": "🤖 Dr. Riley — AI Dental Receptionist", "type": "ai_tool", "index": 0 }]] },
+    "🔧 Tool: Escalate To Human":   { "ai_tool": [[{ "node": "🤖 Dr. Riley — AI Dental Receptionist", "type": "ai_tool", "index": 0 }]] },
+
+    "📤 Route by Channel": {
+      "main": [
+        [{ "node": "📱 Send SMS Reply",      "type": "main", "index": 0 }],
+        [{ "node": "💬 Send WhatsApp Reply", "type": "main", "index": 0 }],
+        [{ "node": "📧 Send Email Reply",    "type": "main", "index": 0 }]
+      ]
+    },
+
+    "⏰ Appointment Reminder Scheduler": { "main": [[{ "node": "📅 Get Appointments for Next 24h + 2h", "type": "main", "index": 0 }]] },
+    "📅 Get Appointments for Next 24h + 2h": { "main": [[{ "node": "🔀 Split Appointments", "type": "main", "index": 0 }]] },
+    "🔀 Split Appointments": { "main": [[{ "node": "⏱️ 24h or 2h Reminder?", "type": "main", "index": 0 }]] },
+    "⏱️ 24h or 2h Reminder?": {
+      "main": [
+        [{ "node": "📱 Send 24h Reminder", "type": "main", "index": 0 }],
+        [{ "node": "📱 Send 2h Reminder",  "type": "main", "index": 0 }]
+      ]
+    },
+
+    "⏰ Daily Follow-Up Scheduler": { "main": [[{ "node": "📋 Get Cold Leads from Airtable", "type": "main", "index": 0 }]] },
+    "📋 Get Cold Leads from Airtable": { "main": [[{ "node": "🔀 Split Cold Leads", "type": "main", "index": 0 }]] },
+    "🔀 Split Cold Leads": { "main": [[], [{ "node": "📝 Build Follow-Up Context", "type": "main", "index": 0 }]] },
+    "📝 Build Follow-Up Context": { "main": [[{ "node": "🤖 Follow-Up AI Message", "type": "main", "index": 0 }]] },
+    "🤖 Follow-Up AI Message": { "main": [[{ "node": "📱 Send Follow-Up SMS", "type": "main", "index": 0 }]] },
+    "🧠 GPT-4o (Follow-Up)": { "ai_languageModel": [[{ "node": "🤖 Follow-Up AI Message", "type": "ai_languageModel", "index": 0 }]] },
+    "📱 Send Follow-Up SMS": { "main": [[{ "node": "💾 Increment Follow-Up Stage", "type": "main", "index": 0 }]] }
+  },
+
+  "active": false,
+  "pinData": {},
+  "settings": { "executionOrder": "v1" },
+  "versionId": "dental-clinic-ai-v1-full"
+}
